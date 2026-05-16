@@ -6,6 +6,8 @@ A Streamlit dashboard that shows what's trending on Google right now, with relat
 
 Built with the **SerpApi Python SDK** for the SerpApi conference raffle challenge.
 
+<img width="952" height="447" alt="Screenshot 2026-05-15 171436" src="https://github.com/user-attachments/assets/12fd56ef-1ba9-46a3-9b5d-ecf99b0ca450" />
+
 ## What It Does
 
 - **Trending Now** -- See the top trending searches on Google, with search volume, percentage increase, and category tags
