@@ -22,14 +22,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Try multiple sources for the API key
 API_KEY = os.getenv("SERPAPI_KEY", "")
-if not API_KEY:
-    # Fallback: read from file if present (local dev convenience)
-    key_file = os.path.join(os.path.dirname(__file__), "serpapi-api-key.txt")
-    if os.path.exists(key_file):
-        with open(key_file) as f:
-            API_KEY = f.read().strip()
 
 CATEGORY_MAP = {
     "All": None,
