@@ -10,7 +10,6 @@ Uses 3 SerpApi engines:
 """
 
 import os
-import datetime
 
 import pandas as pd
 import streamlit as st
@@ -202,25 +201,93 @@ def render_interest_chart(timeline_data: list[dict], query: str):
         date_str = point.get("date", "")
         values = point.get("values", [])
         for v in values:
-            rows.append(
-                {
-                    "Date": date_str,
-                    "Interest": v.get("extracted_value", 0),
-                }
-            )
+            extracted = v.get("extracted_value", 0)
+            if extracted is not None:
+                rows.append(
+                    {
+                        "Date": date_str,
+                        "Interest": int(extracted),
+                    }
+                )
 
     if not rows:
+        st.info("No chart data available for this query.")
         return
 
     df = pd.DataFrame(rows)
-    # Add numeric index for chart ordering
-    df["idx"] = range(len(df))
 
-    st.line_chart(df, x="idx", y="Interest", x_label="Time", y_label="Interest")
+    if df["Interest"].isna().all() or len(df) == 0:
+        st.info("No chart data available for this query.")
+        return
+
+    st.line_chart(df, y="Interest", x_label="Time", y_label="Interest")
     st.caption(
         f"Google Trends interest over the past 7 days for **{query}**. "
         "Values are relative (0-100 scale)."
     )
+
+
+# ---------------------------------------------------------------------------
+# Deep dive dialog (modal popup)
+# ---------------------------------------------------------------------------
+
+
+@st.dialog("Deep Dive", width="large")
+def show_deep_dive(query: str, geo: str, trend_data: dict | None):
+    """Show a modal dialog with news, interest chart, and trend info."""
+    st.subheader(query)
+
+    tab_news, tab_trends, tab_info = st.tabs(
+        ["News", "Interest Over Time", "Trend Info"]
+    )
+
+    with tab_news:
+        try:
+            with st.spinner("Fetching news..."):
+                articles = fetch_news(query, geo)
+            if articles:
+                for article in articles[:8]:
+                    render_news_article(article)
+            else:
+                st.info("No news articles found.")
+        except serpapi.HTTPError as e:
+            st.error(f"Failed to fetch news: {e}")
+        except Exception as e:
+            st.error(f"Unexpected error fetching news: {e}")
+
+    with tab_trends:
+        try:
+            with st.spinner("Fetching trend data..."):
+                timeline = fetch_interest_over_time(query, geo)
+            render_interest_chart(timeline, query)
+        except serpapi.HTTPError as e:
+            st.error(f"Failed to fetch trend data: {e}")
+        except Exception as e:
+            st.error(f"Unexpected error fetching trends: {e}")
+
+    with tab_info:
+        if trend_data:
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Search Volume", f"{trend_data.get('search_volume', 0):,}")
+            with col2:
+                st.metric("Increase", f"+{trend_data.get('increase_percentage', 0)}%")
+            with col3:
+                st.metric(
+                    "Status", "Active" if trend_data.get("active") else "Inactive"
+                )
+
+            categories = trend_data.get("categories", [])
+            if categories:
+                st.write("**Categories:**", ", ".join(c["name"] for c in categories))
+
+            breakdown = trend_data.get("trend_breakdown", [])
+            if breakdown:
+                st.write("**Related queries:**")
+                for bq in breakdown[:10]:
+                    st.write(f"- {bq}")
+        else:
+            st.info("No additional trend metadata available.")
 
 
 # ---------------------------------------------------------------------------
@@ -285,21 +352,30 @@ def main():
         tab_news, tab_trends = st.tabs(["News", "Interest Over Time"])
 
         with tab_news:
-            with st.spinner("Fetching news..."):
-                articles = fetch_news(custom_query, geo)
-            if articles:
-                for article in articles[:10]:
-                    render_news_article(article)
-            else:
-                st.info("No news articles found for this query.")
+            try:
+                with st.spinner("Fetching news..."):
+                    articles = fetch_news(custom_query, geo)
+                if articles:
+                    for article in articles[:10]:
+                        render_news_article(article)
+                else:
+                    st.info("No news articles found for this query.")
+            except serpapi.HTTPError as e:
+                st.error(f"Failed to fetch news: {e}")
+            except Exception as e:
+                st.error(f"Unexpected error: {e}")
 
         with tab_trends:
-            with st.spinner("Fetching trend data..."):
-                timeline = fetch_interest_over_time(custom_query, geo)
-            render_interest_chart(timeline, custom_query)
+            try:
+                with st.spinner("Fetching trend data..."):
+                    timeline = fetch_interest_over_time(custom_query, geo)
+                render_interest_chart(timeline, custom_query)
+            except serpapi.HTTPError as e:
+                st.error(f"Failed to fetch trend data: {e}")
+            except Exception as e:
+                st.error(f"Unexpected error: {e}")
 
         st.divider()
-        st.markdown("---")
 
     # --- Trending now ---
     st.subheader(f"Trending Now in {country_name}")
@@ -308,8 +384,15 @@ def main():
         filter_desc += f" | {category_name}"
     st.caption(filter_desc)
 
-    with st.spinner("Fetching trending searches..."):
-        trends = fetch_trending(geo, hours, category_id)
+    try:
+        with st.spinner("Fetching trending searches..."):
+            trends = fetch_trending(geo, hours, category_id)
+    except serpapi.HTTPError as e:
+        st.error(f"Failed to fetch trending searches: {e}")
+        st.stop()
+    except Exception as e:
+        st.error(f"Unexpected error: {e}")
+        st.stop()
 
     if not trends:
         st.warning("No trending searches found. Try a different country or time range.")
@@ -322,70 +405,11 @@ def main():
         f"(**{active_count}** currently active)"
     )
 
-    # Use session state to track selected trend
-    if "selected_trend" not in st.session_state:
-        st.session_state.selected_trend = None
-
-    # Render trend list
+    # Render trend list -- clicking opens a dialog
     for i, trend in enumerate(trends[:25]):
         clicked = render_trending_card(trend, i)
         if clicked:
-            st.session_state.selected_trend = trend.get("query", "")
-
-    # --- Deep dive into selected trend ---
-    selected = st.session_state.selected_trend
-    if selected:
-        st.divider()
-        st.subheader(f"Deep Dive: {selected}")
-
-        tab_news, tab_trends, tab_info = st.tabs(
-            ["News", "Interest Over Time", "Trend Info"]
-        )
-
-        with tab_news:
-            with st.spinner("Fetching news..."):
-                articles = fetch_news(selected, geo)
-            if articles:
-                for article in articles[:8]:
-                    render_news_article(article)
-            else:
-                st.info("No news articles found.")
-
-        with tab_trends:
-            with st.spinner("Fetching trend data..."):
-                timeline = fetch_interest_over_time(selected, geo)
-            render_interest_chart(timeline, selected)
-
-        with tab_info:
-            # Find the trend data from our list
-            trend_data = next(
-                (t for t in trends if t.get("query") == selected), None
-            )
-            if trend_data:
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("Search Volume", f"{trend_data.get('search_volume', 0):,}")
-                with col2:
-                    st.metric("Increase", f"+{trend_data.get('increase_percentage', 0)}%")
-                with col3:
-                    st.metric(
-                        "Status", "Active" if trend_data.get("active") else "Inactive"
-                    )
-
-                categories = trend_data.get("categories", [])
-                if categories:
-                    st.write("**Categories:**", ", ".join(c["name"] for c in categories))
-
-                breakdown = trend_data.get("trend_breakdown", [])
-                if breakdown:
-                    st.write("**Related queries:**")
-                    for bq in breakdown[:10]:
-                        st.write(f"- {bq}")
-
-        # Clear selection button
-        if st.button("Clear selection"):
-            st.session_state.selected_trend = None
-            st.rerun()
+            show_deep_dive(trend.get("query", ""), geo, trend)
 
 
 if __name__ == "__main__":
