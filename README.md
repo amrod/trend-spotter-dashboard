@@ -6,8 +6,6 @@ A Streamlit dashboard that shows what's trending on Google right now, with relat
 
 Built with the **SerpApi Python SDK** for the SerpApi conference raffle challenge.
 
-<img width="952" height="447" alt="Screenshot 2026-05-15 171436" src="https://github.com/user-attachments/assets/12fd56ef-1ba9-46a3-9b5d-ecf99b0ca450" />
-
 ## What It Does
 
 - **Trending Now** -- See the top trending searches on Google, with search volume, percentage increase, and category tags
@@ -81,9 +79,13 @@ The app will open at `http://localhost:8501`.
 
 ### Trending Now
 
+<img width="952" height="447" alt="Screenshot 2026-05-15 171436" src="https://github.com/user-attachments/assets/12fd56ef-1ba9-46a3-9b5d-ecf99b0ca450" />
+
 The main view shows currently trending Google searches with search volume and category tags. Click any trend to deep-dive into related news and interest charts.
 
 ### Deep Dive
+
+<img width="951" height="500" alt="Screenshot 2026-05-15 175412" src="https://github.com/user-attachments/assets/565c2b08-1ab7-4b07-9d15-e7294e862023" />
 
 Select a trending topic to see:
 - Related news articles from Google News
@@ -91,6 +93,8 @@ Select a trending topic to see:
 - Trend metadata (volume, increase %, categories, related queries)
 
 ### Custom Search
+
+<img width="950" height="484" alt="Screenshot 2026-05-15 175507" src="https://github.com/user-attachments/assets/71abf467-e711-43bd-b43b-2f537f27acf3" />
 
 Use the sidebar to search any topic and get news + trend data instantly.
 
